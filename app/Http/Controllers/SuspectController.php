@@ -89,6 +89,7 @@ class SuspectController extends Controller
             'case_id' => 'required|exists:cases,id',
         ], [
             'case_id.exists' => 'Указанное дело не существует',
+            
         ]);
 
         if ($validator->fails()) {
