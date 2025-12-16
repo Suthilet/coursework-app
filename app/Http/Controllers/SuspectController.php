@@ -82,14 +82,14 @@ class SuspectController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'age' => 'required|integer|min:1|max:120',
-            'eyes' => 'required|string|max:100',
+            'eyes' => 'required|string|max:100', 
             'address' => 'required|string|max:500',
             'phone' => 'required|string|max:20',
             'hobby' => 'required|string|max:255',
             'case_id' => 'required|exists:cases,id',
         ], [
             'case_id.exists' => 'Указанное дело не существует',
-            
+
         ]);
 
         if ($validator->fails()) {
