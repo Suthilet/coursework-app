@@ -15,30 +15,27 @@ class Cases extends Model
         'title',
         'description',
         'difficulty',
-        'suspect_id' // ID подозреваемого, который является правильным ответом
+        'suspect_id'
     ];
 
-    // Связь: одно дело имеет много доказательств
     public function evidences(): HasMany
     {
-        return $this->hasMany(Evidence::class);
+        return $this->hasMany(Evidence::class, 'case_id');
     }
 
-    // Связь: одно дело имеет много правил (CaseRules)
-    public function rules(): HasMany
+
+    public function suspects(): HasMany
     {
-        return $this->hasMany(CaseRules::class);
+        return $this->hasMany(Suspect::class, 'case_id');
     }
 
-    // Связь: одно дело имеет одного "правильного" подозреваемого (как ответ)
     public function correctSuspect(): BelongsTo
     {
         return $this->belongsTo(Suspect::class, 'suspect_id');
     }
 
-    // Связь: одно дело имеет много прогрессов пользователей
     public function userProgresses(): HasMany
     {
-        return $this->hasMany(UserProgress::class);
+        return $this->hasMany(UserProgress::class, 'case_id'); 
     }
 }

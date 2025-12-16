@@ -2,16 +2,15 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -21,7 +20,9 @@ class User extends Authenticatable
     protected $fillable = [
         'full_name',
         'login',
-        'password',
+        'password_hash',
+        'b_day',
+        'is_admin', // добавили
     ];
 
     /**
@@ -30,7 +31,7 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $hidden = [
-        'password',
+        'password_hash',
         'remember_token',
     ];
 
@@ -42,12 +43,46 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'password' => 'hashed'
+            'password_hash' => 'hashed',
+            'b_day' => 'date',
+            'is_admin' => 'boolean', // добавили каст
         ];
     }
 
     public function progress(): HasMany
     {
         return $this->hasMany(UserProgress::class);
+    }
+
+    /**
+     * Проверяет, является ли пользователь администратором
+     */
+    public function isAdmin(): bool
+    {
+        return $this->is_admin === true;
+    }
+
+    /**
+     * Скоуп для получения только администраторов
+     */
+    public function scopeAdmins($query)
+    {
+        return $query->where('is_admin', true);
+    }
+
+    /**
+     * Скоуп для получения только обычных пользователей
+     */
+    public function scopeRegularUsers($query)
+    {
+        return $query->where('is_admin', false);
+    }
+
+    /**
+     * Метод для получения роли пользователя
+     */
+    public function getRoleAttribute(): string
+    {
+        return $this->is_admin ? 'admin' : 'user';
     }
 }
