@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
@@ -15,24 +15,41 @@ class UserController extends Controller
     /**
      * Получить список всех пользователей (с пагинацией)
      */
-    public function index(Request $request)
-    {
-        // Пагинация - по 10 пользователей на страницу
-        $users = User::query()
-            ->select(['id', 'full_name', 'login', 'b_day', 'created_at', 'updated_at'])
-            ->orderBy('created_at', 'desc')
-            ->paginate(10);
-
+public function index(Request $request)
+{
+    // Проверяем права
+    if (!$request->user()->isAdmin()) {
         return response()->json([
-            'users' => $users->items(),
-            'pagination' => [
-                'current_page' => $users->currentPage(),
-                'total_pages' => $users->lastPage(),
-                'total_items' => $users->total(),
-                'per_page' => $users->perPage(),
-            ]
-        ]);
+            'message' => 'Доступ запрещен. Требуются права администратора.'
+        ], 403);
     }
+
+    $perPage = $request->input('per_page', 10);
+    $role = $request->input('role'); // 'admin' или 'user'
+
+    $query = User::query();
+
+    // Фильтрация по роли
+    if ($role === 'admin') {
+        $query->where('is_admin', true);
+    } elseif ($role === 'user') {
+        $query->where('is_admin', false);
+    }
+
+    $users = $query->select(['id', 'full_name', 'login', 'b_day', 'is_admin', 'created_at'])
+                   ->orderBy('created_at', 'desc')
+                   ->paginate($perPage);
+
+    return response()->json([
+        'users' => $users->items(),
+        'pagination' => [
+            'current_page' => $users->currentPage(),
+            'total_pages' => $users->lastPage(),
+            'total_items' => $users->total(),
+            'per_page' => $users->perPage(),
+        ]
+    ]);
+}
 
     /**
      * Получить информацию о конкретном пользователе
@@ -56,47 +73,51 @@ class UserController extends Controller
     /**
      * Создать нового пользователя (административная функция)
      */
-    public function store(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'full_name' => 'required|string|max:255',
-            'login' => 'required|string|max:255|unique:users',
-            'password' => 'required|string|min:8|confirmed',
-            'password_confirmation' => 'required|string|min:8',
-            'b_day' => 'required|date|before:today',
-        ], [
-            'login.unique' => 'Этот логин уже занят',
-            'password.confirmed' => 'Пароли не совпадают',
-            'b_day.date' => 'Некорректный формат даты. Используйте ГГГГ-ММ-ДД',
-            'b_day.before' => 'Дата рождения должна быть в прошлом',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        // Преобразуем дату к нужному формату
-        $bDay = Carbon::parse($request->b_day)->format('Y-m-d');
-
-        $user = User::create([
-            'full_name' => $request->full_name,
-            'login' => $request->login,
-            'password_hash' => Hash::make($request->password),
-            'b_day' => $bDay,
-        ]);
-
+public function store(Request $request)
+{
+    // Проверяем, что текущий пользователь - админ
+    if (!$request->user()->isAdmin()) {
         return response()->json([
-            'message' => 'Пользователь успешно создан',
-            'user' => [
-                'id' => $user->id,
-                'full_name' => $user->full_name,
-                'login' => $user->login,
-                'b_day' => $user->b_day,
-            ]
-        ], 201);
+            'message' => 'Доступ запрещен. Требуются права администратора.'
+        ], 403);
     }
+
+    $validator = Validator::make($request->all(), [
+        'full_name' => 'required|string|max:255',
+        'login' => 'required|string|max:255|unique:users',
+        'password' => 'required|string|min:8|confirmed',
+        'password_confirmation' => 'required|string|min:8',
+        'b_day' => 'required|date|before:today',
+        'is_admin' => 'sometimes|boolean',
+    ]);
+
+    // ... остальной код
+
+    $userData = [
+        'full_name' => $request->full_name,
+        'login' => $request->login,
+        'password_hash' => Hash::make($request->password),
+        'b_day' => Carbon::parse($request->b_day)->format('Y-m-d'),
+    ];
+
+    if ($request->has('is_admin')) {
+        $userData['is_admin'] = $request->is_admin;
+    }
+
+    $user = User::create($userData);
+
+    return response()->json([
+        'message' => 'Пользователь успешно создан',
+        'user' => [
+            'id' => $user->id,
+            'full_name' => $user->full_name,
+            'login' => $user->login,
+            'b_day' => $user->b_day,
+            'is_admin' => $user->is_admin,
+            'role' => $user->is_admin ? 'admin' : 'user',
+        ]
+    ], 201);
+}
 
     /**
      * Обновить информацию о пользователе

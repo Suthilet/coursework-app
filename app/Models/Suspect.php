@@ -17,7 +17,7 @@ class Suspect extends Model
         'address',
         'phone',
         'hobby',
-        'case_id' // добавили
+        'case_id' 
     ];
 
     // Связь: подозреваемый принадлежит одному делу
