@@ -1,35 +1,57 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import DashboardPage from './pages/DashboardPage';
+import { authAPI } from './api/auth';
 
-// Простой компонент для 404
-const NotFound = () => (
-  <div className="min-h-screen bg-sky-500 flex items-center justify-center">
-    <div className="text-center">
-      <h1 className="text-6xl font-bold text-white mb-4">404</h1>
-      <p className="text-xl text-white mb-8">Страница не найдена</p>
-      <a 
-        href="/login" 
-        className="px-6 py-3 bg-amber-600 text-black rounded-xl hover:bg-amber-700"
-      >
-        На главную
-      </a>
-    </div>
-  </div>
-);
+// Компонент для проверки авторизации
+const PrivateRoute = ({ children }) => {
+  const isLoggedIn = authAPI.isLoggedIn();
+  
+  return isLoggedIn ? children : <Navigate to="/login" />;
+};
+
+// Публичный маршрут (только для неавторизованных)
+const PublicRoute = ({ children }) => {
+  const isLoggedIn = authAPI.isLoggedIn();
+  
+  return !isLoggedIn ? children : <Navigate to="/dashboard" />;
+};
 
 function App() {
   return (
     <Router>
-      <div className="App">
-        <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </div>
+      <Routes>
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        
+        <Route path="/login" element={
+          <PublicRoute>
+            <LoginPage />
+          </PublicRoute>
+        } />
+        
+        <Route path="/register" element={
+          <PublicRoute>
+            <RegisterPage />
+          </PublicRoute>
+        } />
+        
+        <Route path="/dashboard" element={
+          <PrivateRoute>
+            <DashboardPage />
+          </PrivateRoute>
+        } />
+        
+        <Route path="*" element={
+          <div className="min-h-screen bg-blue-500 flex items-center justify-center">
+            <div className="text-center text-white">
+              <h1 className="text-4xl font-bold mb-4">404</h1>
+              <p className="text-xl">Страница не найдена</p>
+            </div>
+          </div>
+        } />
+      </Routes>
     </Router>
   );
 }
