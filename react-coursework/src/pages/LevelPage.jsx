@@ -135,21 +135,32 @@ const fetchLevelData = async () => {
     };
     
     const handleInsertText = (text) => {
+        const textTrimmed = text.trim().toLowerCase();
+        
+        const isAndOr = textTrimmed.startsWith('and ') || textTrimmed.startsWith('or ');
+        const isWhere = textTrimmed.startsWith('where ');
+        
         if (query.trim() === '') {
             setQuery(text);
         } else {
-            const lines = query.split('\n');
-            const lastLine = lines[lines.length - 1];
+            // Проверяем, содержит ли текущий запрос уже WHERE
+            const currentQueryLower = query.toLowerCase();
+            const hasWhereInQuery = currentQueryLower.includes('where ');
             
-            if (!lastLine.trim().endsWith(';') && lastLine.trim() !== '') {
-                lines[lines.length - 1] = lastLine + ';';
-                setQuery(lines.join('\n') + '\n' + text);
+            if (isWhere && hasWhereInQuery) {
+                // Если уже есть WHERE, заменяем второй WHERE на AND
+                const modifiedText = 'and ' + textTrimmed.substring(6); // Убираем "where " и добавляем "and "
+                setQuery(query.trim() + ' ' + modifiedText);
+            } else if (isAndOr) {
+                // Для AND/OR добавляем пробел и текст на той же строке
+                setQuery(query.trim() + ' ' + text.trim());
             } else {
+                // Для остальных случаев добавляем на новой строке
                 setQuery(query + '\n' + text);
             }
         }
     };
-    
+        
     // Обработчик выбора подозреваемого
     const handleSelectCriminal = (index) => {
         // Если уровень уже пройден, не позволяем выбирать другого
