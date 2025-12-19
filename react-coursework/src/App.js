@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import { authAPI } from './api/auth';
+import LevelPage from './pages/LevelPage';
 
 // Компонент для проверки авторизации
 const PrivateRoute = ({ children }) => {
@@ -42,6 +43,12 @@ function App() {
             <DashboardPage />
           </PrivateRoute>
         } />
+
+        <Route path='/level/:id' element={
+          <PrivateRoute>
+            <LevelPage />
+          </PrivateRoute>}
+          />
         
         <Route path="*" element={
           <div className="min-h-screen bg-blue-500 flex items-center justify-center">

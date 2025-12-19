@@ -345,6 +345,12 @@ class CasesController extends Controller
 
         $isCorrect = $case->suspect_id == $request->suspect_id;
 
+        if(!$isCorrect){
+            return response()->json([
+                'message' => 'Неправильный ответ'
+            ],200);
+        }
+
         // Если пользователь авторизован, сохраняем прогресс
         $progressData = null;
         if ($request->user()) {
@@ -453,9 +459,7 @@ class CasesController extends Controller
         return array_slice($hints, 0, 2); // Возвращаем не более 2 подсказок
     }
 
-    /**
-     * Получить текстовое описание сложности
-     */
+
     private function getDifficultyLabel($difficulty)
     {
         $labels = [
@@ -498,6 +502,192 @@ class CasesController extends Controller
             'count' => $cases->count()
         ]);
     }
+
+
+public function executeQuery(Request $request, $caseId)
+{
+    $validator = Validator::make($request->all(), [
+        'query' => 'required|string',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'errors' => $validator->errors()
+        ], 422);
+    }
+
+    $case = Cases::find($caseId);
+
+    if (!$case) {
+        return response()->json([
+            'message' => 'Дело не найдено'
+        ], 404);
+    }
+
+    // Получаем всех подозреваемых дела
+    $suspects = $case->suspects()->get();
+    $query = $request->input('query');
+    $queryLower = strtolower($query);
+
+    \Log::info('SQL Query received:', ['query' => $query, 'case_id' => $caseId]);
+    \Log::info('Suspects count before filter:', ['count' => $suspects->count()]);
+
+    $filteredSuspects = $suspects;
+
+    try {
+        // Простой SQL-парсер (учебный вариант)
+        if (!str_contains($queryLower, 'select') || !str_contains($queryLower, 'from')) {
+            throw new \Exception('Запрос должен содержать SELECT и FROM');
+        }
+
+        // Если есть WHERE, пытаемся парсить условия
+        if (str_contains($queryLower, 'where')) {
+            // Извлекаем часть после WHERE
+            $whereIndex = stripos($query, 'WHERE');
+            $wherePart = substr($query, $whereIndex + 5);
+
+            \Log::info('WHERE part extracted:', ['wherePart' => $wherePart]);
+
+            // Упрощенный парсинг условий
+            $filteredSuspects = $this->applyFilters($suspects, $wherePart);
+
+            \Log::info('After filtering:', ['count' => $filteredSuspects->count()]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'results' => $filteredSuspects->values()->all(), // Преобразуем в массив
+            'query' => $query,
+            'count' => $filteredSuspects->count(),
+            'message' => 'Запрос выполнен успешно. Найдено записей: ' . $filteredSuspects->count()
+        ]);
+
+    } catch (\Exception $e) {
+        \Log::error('Query execution error:', [
+            'error' => $e->getMessage(),
+            'query' => $query,
+            'case_id' => $caseId
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'results' => [],
+            'query' => $query,
+            'count' => 0,
+            'message' => 'Ошибка выполнения запроса: ' . $e->getMessage()
+        ]);
+    }
+}
+
+
+private function applyFilters($suspects, $whereConditions)
+{
+    $filtered = collect($suspects);
+
+    // Убираем лишние пробелы и точку с запятой в конце
+    $whereConditions = trim($whereConditions, " ;\t\n\r\0\x0B");
+
+    // Разбиваем условия по AND (с учетом регистра)
+    $conditions = preg_split('/\s+AND\s+/i', $whereConditions);
+
+    foreach ($conditions as $condition) {
+        $condition = trim($condition);
+
+        if (empty($condition)) {
+            continue;
+        }
+
+        // Парсим условие: column operator value
+        // Поддерживаем: eyes = "голубые", age > 25, gender = 'М'
+        preg_match('/(\w+)\s*([=<>!]+)\s*["\']?([^"\';]+)["\']?/', $condition, $matches);
+
+        if (count($matches) >= 4) {
+            $column = trim($matches[1]);
+            $operator = trim($matches[2]);
+            $value = trim($matches[3], " '\"");
+
+            // Приводим к нижнему регистру для сравнения
+            $valueLower = strtolower($value);
+
+            $filtered = $filtered->filter(function ($suspect) use ($column, $operator, $value, $valueLower) {
+                $suspectValue = $suspect->$column ?? null;
+
+                if ($suspectValue === null) {
+                    return false;
+                }
+
+                // Для строковых сравнений приводим к нижнему регистру
+                if (in_array($column, ['eyes', 'gender', 'hair', 'hobby', 'name'])) {
+                    $suspectValueLower = strtolower((string)$suspectValue);
+                    return $this->compareValue($suspectValueLower, $operator, $valueLower);
+                }
+
+                // Для числовых значений
+                return $this->compareValue($suspectValue, $operator, $value);
+            });
+        } else {
+            // Если не удалось распарсить, попробуем другой паттерн
+            preg_match('/(\w+)\s+([=<>!]+)\s+([^;]+)/', $condition, $matches2);
+
+            if (count($matches2) >= 4) {
+                $column = trim($matches2[1]);
+                $operator = trim($matches2[2]);
+                $value = trim($matches2[3], " '\"");
+
+                $valueLower = strtolower($value);
+
+                $filtered = $filtered->filter(function ($suspect) use ($column, $operator, $value, $valueLower) {
+                    $suspectValue = $suspect->$column ?? null;
+
+                    if ($suspectValue === null) {
+                        return false;
+                    }
+
+                    if (in_array($column, ['eyes', 'gender', 'hair', 'hobby', 'name'])) {
+                        $suspectValueLower = strtolower((string)$suspectValue);
+                        return $this->compareValue($suspectValueLower, $operator, $valueLower);
+                    }
+
+                    return $this->compareValue($suspectValue, $operator, $value);
+                });
+            }
+        }
+    }
+
+    return $filtered;
+}
+
+/**
+ * Сравнить значения
+ */
+private function compareValue($actual, $operator, $expected)
+{
+    if ($actual === null) return false;
+
+    $actualStr = strtolower((string)$actual);
+    $expectedStr = strtolower($expected);
+
+    switch ($operator) {
+        case '=':
+        case '==':
+            return $actualStr == $expectedStr;
+        case '!=':
+        case '<>':
+            return $actualStr != $expectedStr;
+        case '>':
+            return intval($actual) > intval($expected);
+        case '<':
+            return intval($actual) < intval($expected);
+        case '>=':
+            return intval($actual) >= intval($expected);
+        case '<=':
+            return intval($actual) <= intval($expected);
+        case 'like':
+            return str_contains($actualStr, $expectedStr);
+        default:
+            return false;
+    }
+}
 
     /**
      * Получить все дела с минимальной информацией (для выпадающих списков и т.д.)

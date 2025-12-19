@@ -23,6 +23,14 @@ Route::prefix('cases')->group(function () {
     Route::get('/random', [CasesController::class, 'getRandomCase']);
     Route::get('/{id}', [CasesController::class, 'show']);
     Route::get('/{id}/stats', [CasesController::class, 'getCaseStats']);
+    Route::get('/{id}/suspects', [CasesController::class, 'getCaseSuspects']);
+    Route::get('/{id}/evidences', [CasesController::class, 'getCaseEvidences']);
+
+    // Игровые операции (требуют аутентификации)
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/{id}/check-answer', [CasesController::class, 'checkAnswer']);
+        Route::post('/{id}/query', [CasesController::class, 'executeQuery']); // Добавьте этот
+    });
 });
 
 // Маршруты для подозреваемых (suspects) - частично публичные
@@ -46,6 +54,7 @@ Route::prefix('evidence')->group(function () {
 // Маршруты для прогресса (progress) - частично публичные
 Route::prefix('progress')->group(function () {
     Route::get('/', [UserProgressController::class, 'index']);
+
     Route::get('/leaderboard', [UserProgressController::class, 'leaderboard']);
     Route::get('/stats', [UserProgressController::class, 'stats']);
     Route::get('/{id}', [UserProgressController::class, 'show']);
