@@ -86,7 +86,7 @@ class EvidenceController extends Controller
             'description' => 'required|string',
             'type' => 'required|string|in:html,image,pdf,text,video,audio,document',
             'case_id' => 'required|exists:cases,id',
-            'file' => 'sometimes|file|max:10240', // максимум 10MB
+            'file' => 'sometimes|file|max:10240',
             'metadata' => 'sometimes|json',
         ]);
 
@@ -100,36 +100,115 @@ class EvidenceController extends Controller
 
         // Обработка файла, если он загружен
         if ($request->hasFile('file')) {
-            $file = $request->file('file');
+        $file = $request->file('file');
+
+        // Сохраняем с оригинальным именем файла
+        $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+        $extension = $file->getClientOriginalExtension();
+
+        // Для HTML файлов сохраняем с правильным расширением
+        if (in_array(strtolower($extension), ['html', 'htm'])) {
+            $path = $file->storeAs('evidences', $originalName . '.' . $extension, 'public');
+        } else {
             $path = $file->store('evidences', 'public');
-
-            $data['file_path'] = $path;
-            $data['mime_type'] = $file->getMimeType();
-            $data['size'] = $file->getSize();
-
-            // Если тип не указан, определяем по расширению
-            if (!$request->has('type')) {
-                $extension = strtolower($file->getClientOriginalExtension());
-                $typeMap = [
-                    'jpg' => 'image', 'jpeg' => 'image', 'png' => 'image', 'gif' => 'image',
-                    'pdf' => 'pdf',
-                    'txt' => 'text',
-                    'mp4' => 'video', 'avi' => 'video', 'mov' => 'video',
-                    'mp3' => 'audio', 'wav' => 'audio',
-                    'doc' => 'document', 'docx' => 'document',
-                ];
-
-                $data['type'] = $typeMap[$extension] ?? 'document';
-            }
         }
 
-        $evidence = Evidence::create($data);
+        $data['file_path'] = $path;
+        $data['mime_type'] = $file->getMimeType();
+        $data['size'] = $file->getSize();
+
+        if (!$request->has('type')) {
+            $extension = strtolower($file->getClientOriginalExtension());
+            $typeMap = [
+                'html' => 'html', 'htm' => 'html', // ✅ Добавьте это
+                'jpg' => 'image', 'jpeg' => 'image', 'png' => 'image', 'gif' => 'image',
+                'pdf' => 'pdf',
+                'txt' => 'text',
+                'mp4' => 'video', 'avi' => 'video', 'mov' => 'video',
+                'mp3' => 'audio', 'wav' => 'audio',
+                'doc' => 'document', 'docx' => 'document',
+            ];
+
+            $data['type'] = $typeMap[$extension] ?? 'document';
+        }
+    }
+
+    $evidence = Evidence::create($data);
+
+    // Добавляем публичную ссылку на файл
+    $evidence->file_url = Storage::url($evidence->file_path);
+
+    return response()->json([
+        'message' => 'Доказательство успешно создано',
+        'evidence' => $evidence->load('case:id,title')
+    ], 201);
+    }
+
+    /**
+ * Получить содержимое HTML улики
+ */
+public function getHtmlContent($id)
+{
+    $evidence = Evidence::find($id);
+
+    if (!$evidence) {
+        return response()->json([
+            'message' => 'Доказательство не найдено'
+        ], 404);
+    }
+
+    // Проверяем, что это HTML файл
+    if ($evidence->type !== 'html' || !$evidence->file_path) {
+        return response()->json([
+            'message' => 'Это доказательство не является HTML файлом'
+        ], 400);
+    }
+
+    // Читаем содержимое файла
+    try {
+        $content = Storage::get($evidence->file_path);
 
         return response()->json([
-            'message' => 'Доказательство успешно создано',
-            'evidence' => $evidence->load('case:id,title')
-        ], 201);
+            'evidence' => [
+                'id' => $evidence->id,
+                'title' => $evidence->title,
+                'type' => $evidence->type,
+                'html_content' => $content,
+                'file_url' => Storage::url($evidence->file_path),
+            ]
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Ошибка чтения файла',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
+
+/**
+ * Показать HTML улику в браузере (рендеринг)
+ */
+public function renderHtml($id)
+{
+    $evidence = Evidence::find($id);
+
+    if (!$evidence) {
+        abort(404, 'Доказательство не найдено');
+    }
+
+    if ($evidence->type !== 'html' || !$evidence->file_path) {
+        abort(400, 'Это доказательство не является HTML файлом');
+    }
+
+    try {
+        $content = Storage::get($evidence->file_path);
+
+        // Возвращаем HTML как есть
+        return response($content)->header('Content-Type', 'text/html');
+    } catch (\Exception $e) {
+        abort(500, 'Ошибка чтения файла');
+    }
+}
 
     /**
      * Обновить доказательство

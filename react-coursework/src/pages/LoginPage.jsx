@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authAPI } from '../api/auth.js';
+import profile from '../svg/person-noncolor.svg';
+import settings from '../svg/settings-noncolor.svg';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -12,8 +14,7 @@ const LoginPage = () => {
   const [errors, setErrors] = useState({});
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Обновление времени
-  React.useEffect(() => {
+  useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 60000);
@@ -21,8 +22,7 @@ const LoginPage = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Проверяем, если пользователь уже авторизован
-  React.useEffect(() => {
+  useEffect(() => {
     if (authAPI.isLoggedIn()) {
       navigate('/dashboard');
     }
@@ -49,7 +49,6 @@ const LoginPage = () => {
       ...prev,
       [name]: value
     }));
-    // Очищаем ошибки при изменении
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: null }));
     }
@@ -60,30 +59,47 @@ const LoginPage = () => {
     setLoading(true);
     setErrors({});
 
-    // Простая валидация
+    // Валидация
+    const newErrors = {};
+    
     if (!formData.login.trim()) {
-      setErrors({ login: 'Введите логин' });
-      setLoading(false);
-      return;
+      newErrors.login = 'Введите логин';
     }
     
     if (!formData.password) {
-      setErrors({ password: 'Введите пароль' });
+      newErrors.password = 'Введите пароль';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Пароль должен быть не менее 6 символов';
+    }
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       setLoading(false);
       return;
     }
 
-    // Отправляем запрос на сервер
-    const result = await authAPI.login(formData.login, formData.password);
-    
-    setLoading(false);
-    
-    if (result.success) {
-      // Успешный вход - перенаправляем на дашборд
-      navigate('/dashboard');
-    } else {
-      // Показываем ошибки от сервера
-      setErrors(result.errors);
+    try {
+      // Отправляем запрос на сервер
+      const result = await authAPI.login(formData.login, formData.password);
+      
+      if (result.success) {
+        // Успешный вход - перенаправляем на дашборд
+        navigate('/dashboard');
+      } else {
+        // Показываем ошибки от сервера
+        if (result.errors && typeof result.errors === 'object') {
+          setErrors(result.errors);
+        } else if (result.message) {
+          setErrors({ general: result.message });
+        } else {
+          setErrors({ general: 'Неверный логин или пароль' });
+        }
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setErrors({ general: 'Произошла ошибка при входе. Попробуйте позже.' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -93,13 +109,21 @@ const LoginPage = () => {
 
   return (
     <div className="w-full h-screen bg-blue-500 overflow-hidden absolute">
-      {/* Футер (нижняя полоса) */}
-      <div className="w-full h-20 absolute bottom-0 bg-[#313131]" />
-      
-      {/* Логотип Filice */}
-      <div className="absolute left-10 top-3 text-white text-5xl font-normal font-roboto-mono filice-logo">
-        Filice
+      <div className='w-full absolute flex justify-between p-6'>
+        <div className="text-white text-5xl font-normal font-roboto-mono filice-logo">
+          Filice
+        </div>
+        <div className="w-max g-6 right-8 flex items-center space-x-4">
+          <button onClick={() => navigate('/dashboard')}>
+            <img src={profile} alt='Профиль'/>
+          </button>
+          <button onClick={() => navigate('/settings')}>
+            <img src={settings} alt='Настройки'/>
+          </button>
+        </div>
       </div>
+      <div className="w-full h-20 absolute bottom-0 bg-[#313131]" />
+    
       
       {/* Дата и время в футере */}
       <div className="absolute right-10 bottom-2 text-right text-white text-2xl font-normal font-hannari">
@@ -108,49 +132,45 @@ const LoginPage = () => {
         {formatDate(currentTime)}
       </div>
       
-      {/* Иконка профиля (левый верхний угол) */}
-      <div className="absolute right-40 top-6 w-16 h-16 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
-        <div className="absolute w-10 h-12 left-[9.53px] top-[3.81px] opacity-20 bg-white" />
-        <div className="absolute w-11 h-14 left-[7.62px] top-[1.91px] bg-white" />
-      </div>
-      
-      {/* Иконка уведомлений (правый верхний угол) */}
-      <div className="absolute right-8 top-7 w-12 h-12 overflow-hidden cursor-pointer hover:scale-110 transition-transform">
-        <div className="absolute w-12 h-12 bg-black" />
-        <div className="absolute w-11 h-11 left-[2px] top-[2px] bg-white/25" />
-        <div className="absolute w-12 h-12 left-[0.50px] top-[0.50px] bg-white" />
-      </div>
-      
       {/* Основной контейнер формы */}
-    <div className='grid place-items-center h-screen'>
+      <div className='grid place-items-center h-screen'>
         {/* Внешняя рамка формы */}
         <div className="w-[819px] h-[622px] bg-[#363636] rounded-[19px]">
           
-            
-            {/* Заголовок формы */}
-            <div className="flex justify-between items-center p-4 bg-[#313131] rounded-t-[19px]">
-              <div className="text-white text-xl font-normal font-hanken-grotesk">
-                Следователь/Вход
-              </div>
-              
-              {/* Кнопка закрытия (иконка) */}
-              <div className="w-6 h-6 overflow-hidden cursor-pointer hover:opacity-70 transition-opacity">
-                <div className="w-2.5 h-2.5 mx-auto mt-[7.63px] outline outline-[3px] outline-offset-[-1.50px] outline-white" />
-              </div>
+          {/* Заголовок формы */}
+          <div className="flex justify-between items-center p-4 bg-[#313131] rounded-t-[19px]">
+            <div className="text-white text-xl font-normal font-hanken-grotesk">
+              Следователь/Вход
             </div>
-            <div className='my-auto grid place-items-center h-[90%]'>
-
+            
+            {/* Кнопка закрытия (иконка) */}
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="w-6 h-6 overflow-hidden cursor-pointer hover:opacity-70 transition-opacity focus:outline-none"
+            >
+              <div className="w-2.5 h-2.5 mx-auto mt-[7.63px] outline outline-[3px] outline-offset-[-1.50px] outline-white" />
+            </button>
+          </div>
+          
+          <div className='my-auto grid place-items-center h-[90%]'>
             <div className="h-[422px] m-auto w-[545px] relative">
-                <h1 className="text-[38px]/10  font-semibold font-hanken-grotesk ">
-                  <span className="text-blue-300">Войди</span>
-                  <span className="text-white">, чтобы продолжить расследования</span>
-                </h1>
+              <h1 className="text-[38px]/10 font-semibold font-hanken-grotesk">
+                <span className="text-blue-300">Войди</span>
+                <span className="text-white">, чтобы продолжить расследования</span>
+              </h1>
               
               {/* Форма входа */}
               <form onSubmit={handleSubmit} className="w-[534px] mx-auto mt-8">
+                {/* Общие ошибки */}
+                {errors.general && (
+                  <div className="mb-4 p-3 bg-red-900/30 text-red-200 rounded-lg">
+                    {errors.general}
+                  </div>
+                )}
                 
                 {/* Поле логина */}
-                <div className="mb-6">
+                <div className="mb-2">
                   <div className="relative">
                     <input
                       type="text"
@@ -158,13 +178,21 @@ const LoginPage = () => {
                       value={formData.login}
                       onChange={handleInputChange}
                       placeholder="Логин"
-                       className="auth-input w-full h-14 bg-white rounded-xl text-black text-m font-hanken-grotesk"
-                      />
+                      className={`auth-input w-full h-14 bg-white rounded-xl text-black text-[20px] font-hanken-grotesk px-4 ${
+                        errors.login ? 'border-2 border-red-500' : ''
+                      }`}
+                      disabled={loading}
+                    />
                   </div>
+                  {errors.login && (
+                    <div className="text-red-400 text-sm mt-1 ml-2">
+                      {errors.login}
+                    </div>
+                  )}
                 </div>
                 
                 {/* Поле пароля */}
-                <div className="mb-8">
+                <div className="mb-2">
                   <div className="relative">
                     <input
                       type="password"
@@ -172,17 +200,42 @@ const LoginPage = () => {
                       value={formData.password}
                       onChange={handleInputChange}
                       placeholder="Пароль"
-                      className="auth-input w-full h-14 bg-white rounded-xl text-black text-m font-hanken-grotesk"
+                      className={`auth-input w-full h-14 bg-white rounded-xl text-black text-[20px] font-hanken-grotesk px-4 ${
+                        errors.password ? 'border-2 border-red-500' : ''
+                      }`}
+                      disabled={loading}
                     />
                   </div>
+                  {errors.password && (
+                    <div className="text-red-400 text-sm mt-1 ml-2">
+                      {errors.password}
+                    </div>
+                  )}
                 </div>
+                
+                {/* Сообщение об ошибке входа (показывается только если есть ошибка general) */}
+                {errors.general && !errors.login && !errors.password && (
+                  <div className="mb-4 text-red-400 text-sm text-center">
+                    {errors.general}
+                  </div>
+                )}
                 
                 {/* Кнопка входа */}
                 <button
                   type="submit"
-                  className="block auth-button w-[198px] m-auto h-14 bg-amber-600 hover:bg-amber-700 rounded-xl text-black font-bold font-hanken-grotesk"
+                  disabled={loading}
+                  className={`block auth-button w-[198px] hover:text-white m-auto h-14 bg-amber-600 hover:bg-amber-700 rounded-xl text-black font-bold font-hanken-grotesk transition-colors ${
+                    loading ? 'opacity-70 cursor-not-allowed' : ''
+                  }`}
                 >
-                  Войти
+                  {loading ? (
+                    <div className="hover:text-white flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-black mr-2"></div>
+                      Вход...
+                    </div>
+                  ) : (
+                    <div className=''>Войти</div>
+                  )}
                 </button>
                 
                 {/* Ссылка на регистрацию */}
@@ -193,33 +246,17 @@ const LoginPage = () => {
                       type="button"
                       onClick={handleRegisterClick}
                       className="text-blue-300 underline hover:text-blue-400 transition-colors font-hanken-grotesk"
+                      disabled={loading}
                     >
                       Зарегистрироваться
                     </button>
                   </p>
                 </div>
-                
-                {/* Дополнительные опции */}
-                {/* <div className="flex justify-between items-center mt-6">
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input type="checkbox" className="w-4 h-4" />
-                    <span className="text-white text-sm font-hanken-grotesk">Запомнить меня</span>
-                  </label>
-                  <button
-                    type="button"
-                    className="text-blue-300 text-sm hover:text-blue-400 underline font-hanken-grotesk"
-                  >
-                    Забыли пароль?
-                  </button>
-                </div> */}
               </form>
-            
-          </div>
-          </div>
-                        
+            </div>
           </div>
         </div>
-    
+      </div>
     </div>
   );
 };

@@ -7,7 +7,13 @@ use App\Http\Controllers\CasesController;
 use App\Http\Controllers\SuspectController;
 use App\Http\Controllers\EvidenceController;
 use App\Http\Controllers\UserProgressController;
+use App\Http\Controllers\FileController;
 
+
+Route::prefix('evidence')->group(function () {
+    Route::get('/{id}/proxy', [FileController::class, 'proxy']);
+    Route::get('/{id}/proxy-html', [FileController::class, 'proxyHtml']);
+});
 
 // Публичные маршруты (не требуют аутентификации)
 Route::prefix('auth')->group(function () {
@@ -45,10 +51,28 @@ Route::prefix('suspects')->group(function () {
 // Маршруты для доказательств (evidence) - частично публичные
 Route::prefix('evidence')->group(function () {
     Route::get('/', [EvidenceController::class, 'index']);
+    Route::post('/', [EvidenceController::class, 'store']);
     Route::get('/types', [EvidenceController::class, 'getTypes']);
     Route::get('/case/{caseId}', [EvidenceController::class, 'getByCase']);
     Route::get('/{id}', [EvidenceController::class, 'show']);
     Route::get('/{id}/download', [EvidenceController::class, 'downloadFile']);
+    Route::get('/{id}/html-content', [EvidenceController::class, 'getHtmlContent']);
+     Route::get('/{id}/render', [EvidenceController::class, 'renderHtml']);
+
+    // Или если хотите с CORS заголовками:
+    Route::get('/{id}/render-cors', function($id) {
+        $evidence = Evidence::findOrFail($id);
+
+        if (!$evidence->file_path) {
+            abort(404);
+        }
+
+        $content = Storage::get($evidence->file_path);
+
+        return response($content, 200)
+            ->header('Content-Type', 'text/html')
+            ->header('Access-Control-Allow-Origin', 'http://localhost:3000');
+    });
 });
 
 // Маршруты для прогресса (progress) - частично публичные

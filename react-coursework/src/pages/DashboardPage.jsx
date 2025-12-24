@@ -2,6 +2,8 @@ import { useNavigate } from 'react-router-dom';
 import { authAPI } from '../api/auth.js';
 import { useState, useEffect } from 'react';
 import { levelsAPI } from '../api/levels.js';
+import profile from '../svg/person-color.svg';
+import settings from '../svg/settings-color.svg';
 
 const DashboardPage = () => {
     const navigate = useNavigate();
@@ -147,9 +149,26 @@ const DashboardPage = () => {
     return (
         <div className="min-h-screen bg-blue-500 overflow-hidden relative">
             {/* Верхняя белая панель */}
-            <div className="w-full h-[476px] bg-white" />
+            <div className=" w-full h-[476px] bg-white" >
+                <div className='p-6 w-full flex justify-between'>
+                    <div className=" text-black text-2xl font-medium font-hanken-grotesk">
+                        Профиль/Личное дело
+                    </div>
+
+                    <div className="w-max g-6 right-8 flex items-center space-x-4">
+                        <button onClick={() => navigate('/dashboard')}>
+                            <img src={profile} alt='Профиль'/>
+                        </button>
+                        <button onClick={() => navigate('/settings')}>
+                            <img src={settings} alt='Настройки'/>
+                        </button>
+                    </div>
+                </div>
+
+
+            </div>
             
-            {/* Футер (нижняя полоса) */}
+
             <div className="w-full h-28 absolute bottom-0 bg-zinc-800" />
             
             {/* Дата и время в футере */}
@@ -159,10 +178,7 @@ const DashboardPage = () => {
                 {formatDate(currentTime)}
             </div>
             
-            {/* Заголовок страницы */}
-            <div className="absolute left-10 top-8 text-black text-2xl font-medium font-hanken-grotesk">
-                Профиль/Личное дело
-            </div>
+
             
             {/* Информация о пользователе */}
             <div className="absolute left-72 top-44">
@@ -197,7 +213,7 @@ const DashboardPage = () => {
             
             {/* Кнопка редактирования профиля */}
             <button 
-                onClick={() => navigate('/profile/edit')}
+                onClick={() => navigate('/dashboard/edit')}
                 className="absolute left-10 top-[384px] text-sky-500 text-2xl font-medium font-hanken-grotesk hover:text-sky-600 transition-colors"
             >
                 Редактировать
@@ -210,24 +226,6 @@ const DashboardPage = () => {
                 </div>
             </div>
             
-            {/* Иконка профиля в хедере */}
-            <button 
-                onClick={() => navigate('/profile')}
-                className="absolute right-40 top-6 w-16 h-16 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
-            >
-                <div className="absolute w-10 h-12 left-[9.53px] top-[3.81px] opacity-20 bg-amber-600" />
-                <div className="absolute w-11 h-14 left-[7.62px] top-[1.91px] bg-amber-600" />
-            </button>
-            
-            {/* Иконка уведомлений */}
-            <button 
-                onClick={() => navigate('/notifications')}
-                className="absolute right-8 top-7 w-12 h-12 overflow-hidden cursor-pointer hover:scale-110 transition-transform"
-            >
-                <div className="absolute w-12 h-12 bg-black rounded-full" />
-                <div className="absolute w-11 h-11 left-[2px] top-[2px] bg-blue-300 rounded-full" />
-                <div className="absolute w-12 h-12 left-[0.50px] top-[0.50px] bg-indigo-500 rounded-full" />
-            </button>
             
             <div className='block'>
                 {/* Прогресс пользователя */}

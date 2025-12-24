@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { levelsAPI } from '../api/levels.js';
+import EvidenceViewer from './components/EvidenceViewer.jsx';
 import arrow from '../svg/arrow.svg';
 import profile from '../svg/person-color.svg';
 import settings from '../svg/settings-color.svg';
 import play from '../svg/play.svg';
 import stop from '../svg/stop.svg';
+import cross from '../svg/cross.svg';
+
 
 const LevelPage = () => {
     const { id } = useParams();
@@ -24,35 +27,33 @@ const LevelPage = () => {
     const [isLevelCompleted, setIsLevelCompleted] = useState(false);
     const [correctAnswerId, setCorrectAnswerId] = useState(null);
     const [correctSuspectName, setCorrectSuspectName] = useState('')
+    const [selectedEvidence, setSelectedEvidence] = useState(null);
+    const [showEvidenceModal, setShowEvidenceModal] = useState(false);
 
 const fetchLevelData = async () => {
     try {
         setLoading(true);
         setError('');
-        
-        // ЗАГРУЖАЕМ ПРОЙДЕННЫЕ УРОВНИ ИЗ LOCALSTORAGE
+
         const completedLevels = JSON.parse(localStorage.getItem('completedLevels') || '{}');
         const levelInfo = completedLevels[id];
         
         if (levelInfo) {
-            // Если уровень уже пройден
+           
             setIsLevelCompleted(true);
             setCorrectAnswerId(levelInfo.suspectId);
             setCorrectSuspectName(levelInfo.suspectName);
         }
         
-        // Загружаем данные уровня
         const levelResponse = await levelsAPI.getLevel(id);
         setLevelData(levelResponse.case);
         
-        // Загружаем улики
         const evidenceData = await levelsAPI.getEvidence(id);
+        console.log(evidenceData)
         setEvidence(evidenceData);
         
-        // Загружаем подозреваемых
         const criminalsData = await levelsAPI.getCriminals(id);
         
-        // Форматируем результаты
         const formattedResults = criminalsData.map(criminal => ({
             id: criminal.id,
             name: criminal.name || 'Неизвестно',
@@ -64,13 +65,11 @@ const fetchLevelData = async () => {
             address: criminal.address || 'Не указан',
             phone: criminal.phone || 'Не указан',
             selected: false,
-            // Если уровень пройден, отмечаем правильный ответ
             isCorrectAnswer: levelInfo && criminal.id === levelInfo.suspectId
         }));
         
         setResults(formattedResults);
         
-        // Если уровень еще не пройден, начинаем его
         if (!levelInfo) {
             await levelsAPI.startLevel(id);
         }
@@ -83,7 +82,6 @@ const fetchLevelData = async () => {
     }
 };
     
-    // Загрузка данных уровня
     useEffect(() => {
         fetchLevelData();
     }, [id]);
@@ -133,6 +131,11 @@ const fetchLevelData = async () => {
             setLoading(false);
         }
     };
+
+    const handleViewEvidence = (evidenceItem) => {
+        setSelectedEvidence(evidenceItem);
+        setShowEvidenceModal(true);
+    };
     
     const handleInsertText = (text) => {
         const textTrimmed = text.trim().toLowerCase();
@@ -143,27 +146,21 @@ const fetchLevelData = async () => {
         if (query.trim() === '') {
             setQuery(text);
         } else {
-            // Проверяем, содержит ли текущий запрос уже WHERE
             const currentQueryLower = query.toLowerCase();
             const hasWhereInQuery = currentQueryLower.includes('where ');
             
             if (isWhere && hasWhereInQuery) {
-                // Если уже есть WHERE, заменяем второй WHERE на AND
-                const modifiedText = 'and ' + textTrimmed.substring(6); // Убираем "where " и добавляем "and "
+                const modifiedText = 'and ' + textTrimmed.substring(6); 
                 setQuery(query.trim() + ' ' + modifiedText);
             } else if (isAndOr) {
-                // Для AND/OR добавляем пробел и текст на той же строке
                 setQuery(query.trim() + ' ' + text.trim());
             } else {
-                // Для остальных случаев добавляем на новой строке
                 setQuery(query + '\n' + text);
             }
         }
     };
         
-    // Обработчик выбора подозреваемого
     const handleSelectCriminal = (index) => {
-        // Если уровень уже пройден, не позволяем выбирать другого
         if (isLevelCompleted) {
             setError('Этот уровень уже пройден. Вы не можете изменить ответ.');
             return;
@@ -177,7 +174,6 @@ const fetchLevelData = async () => {
         setSelectedCriminal(index >= 0 ? updatedResults[index] : null);
     };
     
-    // Закрытие модального окна
     const closeModal = () => {
         setModalAnimation(false);
         setTimeout(() => {
@@ -186,18 +182,15 @@ const fetchLevelData = async () => {
         }, 300);
     };
     
-    // Возврат на главную
     const handleGoToHome = () => {
         closeModal();
         navigate('/dashboard');
     };
     
-    // Перезапуск уровня
     const handleRestartLevel = () => {
         closeModal();
         setQuery('select * from suspects');
         
-        // Сброс выбора, но не прогресса
         const resetResults = results.map(criminal => ({
             ...criminal,
             selected: false
@@ -223,14 +216,12 @@ const handleConfirmSelection = async () => {
         const response = await levelsAPI.submitAnswer(id, selectedCriminal.id);
         setSubmissionResult(response);
         
-        // Показываем модальное окно с анимацией
         setShowResultModal(true);
         setTimeout(() => {
             setModalAnimation(true);
         }, 10);
         
         if (response.is_correct) {
-            // СОХРАНЯЕМ ПРАВИЛЬНЫЙ ОТВЕТ В LOCALSTORAGE
             const completedLevels = JSON.parse(localStorage.getItem('completedLevels') || '{}');
             completedLevels[id] = {
                 suspectId: selectedCriminal.id,
@@ -239,23 +230,15 @@ const handleConfirmSelection = async () => {
             };
             localStorage.setItem('completedLevels', JSON.stringify(completedLevels));
             
-            // Обновляем локальное состояние
             setIsLevelCompleted(true);
             setCorrectAnswerId(selectedCriminal.id);
             setCorrectSuspectName(selectedCriminal.name);
             
-            // Обновляем таблицу
             const updatedResults = results.map(criminal => ({
                 ...criminal,
                 isCorrectAnswer: criminal.id === selectedCriminal.id
             }));
             setResults(updatedResults);
-            
-            // Автоматическое закрытие через 3 секунды
-            setTimeout(() => {
-                closeModal();
-                navigate('/dashboard');
-            }, 3000);
         }
         
     } catch (error) {
@@ -285,7 +268,6 @@ const handleConfirmSelection = async () => {
     return (
         <>
             <div className="w-full h-screen relative bg-blue-500 overflow-hidden">
-                {/* Верхняя панель */}
                 <div className="w-full h-20 absolute top-0 bg-white flex items-center px-8 shadow-md">
                     <button 
                         onClick={() => navigate('/dashboard')}
@@ -304,7 +286,7 @@ const handleConfirmSelection = async () => {
                     
                     
                     <div className="absolute g-6 right-8 flex items-center space-x-4">
-                        <button onClick={() => navigate('/profile')}>
+                        <button onClick={() => navigate('/dashboard')}>
                             <img src={profile} alt='Профиль'/>
                         </button>
                         <button onClick={() => navigate('/settings')}>
@@ -313,9 +295,7 @@ const handleConfirmSelection = async () => {
                     </div>
                 </div>
                 
-                {/* Основной контент */}
                 <div className="flex h-full pt-20">
-                    {/* Левая часть - улики */}
                     <div className="w-2/5 h-full p-8 overflow-y-auto">
                         <div className="mb-8">
                             <div className="text-white text-2xl font-semibold font-hanken-grotesk mb-4">
@@ -328,25 +308,39 @@ const handleConfirmSelection = async () => {
                             </div>
                         </div>
                         
-                        {/* Улики */}
+
                         <div className="mb-8">
                             <div className="text-white text-2xl font-semibold font-hanken-grotesk mb-4">
                                 Улики ({evidence.length})
                             </div>
                             <div className="space-y-4">
                                 {evidence.map((item, index) => (
-                                    <div key={index} className="bg-white p-5 rounded-xl shadow-md hover:shadow-lg transition-shadow">
+                                    <div 
+                                        key={index} 
+                                        className="bg-white p-5 rounded-xl shadow-md hover:shadow-lg transition-shadow cursor-pointer hover:scale-[1.02] transition-transform"
+                                        onClick={() => handleViewEvidence(item)}
+                                    >
                                         <div className="flex justify-between items-start mb-2">
                                             <div className="font-semibold text-black font-hanken-grotesk text-lg">
-                                                Улика #{index + 1}
+                                                {item.title}
                                             </div>
-                                            <div className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                                                {item.type || 'Документ'}
+                                            <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                                item.type === 'image' ? 'bg-purple-100 text-purple-800 h-full' :
+                                                item.type === 'text' ? 'bg-blue-100 text-blue-800' :
+                                                item.type === 'html' ? 'bg-green-100 text-green-800' :
+                                                'bg-yellow-100 text-yellow-800'
+                                            }`}>
+                                                {item.type === 'image' ? 'Фотография' :
+                                                item.type === 'text' ? 'Документ' :
+                                                item.type === 'html' ? 'Протокол' : item.type}
                                             </div>
                                         </div>
-                                        <div className="text-black font-hanken-grotesk mb-3">
-                                            <div className="font-medium mb-1">{item.title}</div>
-                                            <div className="text-gray-700">{item.description}</div>
+                                        <div className="text-black font-hanken-grotesk">
+                                            <div className="text-gray-600 mb-2 line-clamp-2">{item.description}</div>
+                                            <div className="text-sm text-gray-500">
+                                                {item.size ? `Размер: ${Math.round(item.size / 1024)}KB • ` : ''}
+                                                Нажмите для просмотра
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
@@ -354,9 +348,8 @@ const handleConfirmSelection = async () => {
                         </div>
                     </div>
                     
-                    {/* Правая часть - база данных и запросы */}
+                    
                     <div className="w-3/5 h-full bg-neutral-800 p-8 overflow-y-auto">
-                        {/* Заголовок */}
                         <div className="text-white text-4xl font-semibold font-hanken-grotesk mb-6">
                             База знаний 
                         </div>
@@ -391,7 +384,7 @@ const handleConfirmSelection = async () => {
                                     where eyes = "голубые"
                                 </button>
                                 <button
-                                    onClick={() => handleInsertText('and age > 25')}
+                                    onClick={() => handleInsertText('where age > 25')}
                                     className="bg-blue-300 hover:bg-blue-500 px-5 py-2 rounded-lg text-black hover:text-white text-lg font-medium font-hanken-grotesk transition-colors shadow-md"
                                 >
                                     where age `{'>'}` 25
@@ -399,7 +392,6 @@ const handleConfirmSelection = async () => {
                             </div>
                         </div>
                         
-                        {/* Редактор SQL */}
                         <div className="mb-8">
                             <div className="bg-white rounded-xl overflow-hidden shadow-lg mb-4">
                                 <div className="bg-blue-500 px-6 py-4">
@@ -436,7 +428,6 @@ const handleConfirmSelection = async () => {
                            
                         </div>
                         
-                        {/* Результаты запроса */}
                         <div className="mb-8 mt-20">
                             <div className="flex justify-between items-center mb-4">
                                 <div className="text-white text-4xl font-semibold font-hanken-grotesk">
@@ -519,7 +510,6 @@ const handleConfirmSelection = async () => {
                                     <div>{error}</div>
                                 </div>
                             )}
-                        {/* Подтверждение выбора */}
                         <div>
                         <div className="text-white text-lg font-medium font-hanken-grotesk mb-4">
                             {isLevelCompleted ? (
@@ -578,7 +568,6 @@ const handleConfirmSelection = async () => {
                 </div>
             </div>
 
-            {/* Модальное окно результата с анимацией */}
             {showResultModal && submissionResult && (
                 <div className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-300 ${
                     modalAnimation ? 'opacity-100' : 'opacity-0 pointer-events-none'
@@ -601,23 +590,23 @@ const handleConfirmSelection = async () => {
                                     onClick={closeModal}
                                     className="w-14 h-14 left-[913px] top-[30px] absolute overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
                                 >
-                                    <div className="w-6 h-6 left-[17.81px] top-[17.81px] absolute outline outline-4 outline-offset-[-2px] outline-black" />
+                                    <img src={cross} alt='cross'/>
                                 </button>
                                 
-                                <div className="w-[671px] h-28 left-[162px] top-[96px] absolute text-center justify-start text-black text-4xl font-bold font-hanken-grotesk">
+                                <div className="w-[671px] h-28 left-[200px] top-[96px] absolute text-center justify-start text-black text-4xl font-bold font-hanken-grotesk">
                                     {'Ура! Ты смог вычислить преступника!'}
                                 </div>
                                 
                                 <div className="w-[500px] h-16 left-[220px] top-[166px] absolute justify-start text-black text-xl font-medium font-hanken-grotesk">
-                                    {submissionResult.message || 'Отличная работа!'}
+                                    {'Отличная работа!'}
                                 </div>
                                 
                                 <button 
                                     onClick={handleGoToHome}
-                                    className="w-80 h-14 left-[130px] top-[275px] absolute bg-blue-300 rounded-xl hover:bg-blue-400 transition-colors"
+                                    className="w-80 h-14 left-[132px] top-[275px] absolute bg-blue-300 rounded-xl hover:bg-blue-400 transition-colors"
                                 >
-                                    <div className="flex items-center justify-center h-full">
-                                        <div className="w-5 h-0 origin-top-left -rotate-180 border-2 border-black mr-2" />
+                                    <div className="flex items-center justify-center gap-3 hover:gap-6 hover:mr-3 h-full">
+                                        <img src={arrow} alt='Стрелка'/> 
                                         <span className="text-black text-2xl font-medium font-hanken-grotesk">
                                             на Главную
                                         </span>
@@ -641,15 +630,15 @@ const handleConfirmSelection = async () => {
                                     onClick={closeModal}
                                     className="w-14 h-14 left-[913px] top-[30px] absolute overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
                                 >
-                                    <div className="w-6 h-6 left-[17.81px] top-[17.81px] absolute outline outline-4 outline-offset-[-2px] outline-black" />
+                                    <img src={cross} alt='cross'/>
                                 </button>
                                 
-                                <div className="w-[671px] h-16 left-[162px] top-[96px] absolute justify-start text-black text-4xl font-bold font-hanken-grotesk">
+                                <div className="left-[200px] top-[96px] absolute justify-start text-black text-4xl font-bold font-hanken-grotesk">
                                     Увы, это неправильный ответ ;(
                                 </div>
                                 
-                                <div className="w-[500px] h-16 left-[220px] top-[166px] absolute justify-start text-black text-xl font-medium font-hanken-grotesk">
-                                    {submissionResult.message || 'Попробуй еще раз! Ты можешь воспользоваться подсказкой, если тебе нужна помощь'}
+                                <div className="w-[500px] h-16 left-[230px] top-[166px] text-center absolute justify-start text-black text-xl font-medium font-hanken-grotesk">
+                                    Попробуй еще раз! Ты можешь воспользоваться подсказкой, если тебе нужна помощь
                                 </div>
                                 
                                 <button 
@@ -668,7 +657,7 @@ const handleConfirmSelection = async () => {
                                     onClick={handleRestartLevel}
                                     className="w-80 h-14 left-[522px] top-[275px] absolute bg-amber-600 rounded-xl hover:bg-amber-700 transition-colors"
                                 >
-                                    <span className="text-white text-2xl font-semibold font-hanken-grotesk">
+                                    <span className="text-black hover:text-white text-2xl font-semibold font-hanken-grotesk">
                                         Попробовать снова
                                     </span>
                                 </button>
@@ -676,6 +665,16 @@ const handleConfirmSelection = async () => {
                         )}
                     </div>
                 </div>
+            )}
+
+            {showEvidenceModal && selectedEvidence && (
+                <EvidenceViewer 
+                    evidence={selectedEvidence}
+                    onClose={() => {
+                        setShowEvidenceModal(false);
+                        setSelectedEvidence(null);
+                    }}
+                />
             )}
         </>
     );
