@@ -349,20 +349,6 @@ const EvidenceViewer = ({ evidence, onClose }) => {
                                 onMouseDown={handleMouseDown}
                                 draggable={false}
                             />
-                            
-                            {/* Информация о размере изображения */}
-                            {imageLoaded && imageDimensions.width && imageDimensions.height && (
-                                <div className="absolute bottom-4 left-4 bg-black/70 text-white text-xs p-2 rounded backdrop-blur-sm">
-                                    <div>
-                                        Размер: {imageDimensions.width} × {imageDimensions.height}px
-                                    </div>
-                                    {evidence.size && (
-                                        <div className="mt-1">
-                                            Вес: {Math.round(evidence.size / 1024)} KB
-                                        </div>
-                                    )}
-                                </div>
-                            )}
                         </div>
                     ) : isHtml ? (
                         // Для HTML документов
