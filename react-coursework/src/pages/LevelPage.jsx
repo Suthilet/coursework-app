@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { levelsAPI } from '../api/levels.js';
-import EvidenceViewer from './components/EvidenceViewer.jsx';
+import EvidenceViewer from '../components/EvidenceViewer.jsx';
 import arrow from '../svg/arrow.svg';
 import profile from '../svg/person-color.svg';
 import settings from '../svg/settings-color.svg';
