@@ -139,7 +139,7 @@ const DashboardPage = () => {
                     
                     {/* Информация о пользователе */}
                     <div className="flex-1 min-w-0 pt-1">
-                        <div className="text-black font-bold font-hanken-grotesk truncate text-lg">
+                        <div className="text-black font-bold font-hanken-grotesk truncate text-[20px]">
                             {user.login || 'Flower2210'}
                         </div>
                         <div className="text-black font-medium font-hanken-grotesk truncate text-base mt-0.5">
@@ -149,30 +149,21 @@ const DashboardPage = () => {
                             {user.b_day ? new Date(user.b_day).toLocaleDateString('ru-RU') : '23.10.2006'}
                         </div>
                     </div>
-
-                    {/* Кнопка выхода (верхняя) */}
-                    <button 
-                        onClick={handleExit}
-                        className="text-black font-bold font-hanken-grotesk hover:text-red-500 transition-colors flex-shrink-0 text-base"
-                    >
-                        Выйти
-                    </button>
-                </div>
-
-                {/* Кнопка редактирования */}
                 <button 
                     onClick={() => navigate('/dashboard/edit')}
-                    className="mb-4 text-sky-500 font-medium font-hanken-grotesk hover:text-sky-600 transition-colors text-base"
+                    className="mb-4 text-black font-semibold font-hanken-grotesk hover:text-orange-400 transition-colors text-base "
                 >
                     Редактировать
                 </button>
-                
-                {/* Прогресс */}
+
+                </div>
+                {/* Кнопка редактирования */}
+
+
                 <div className="text-white font-bold font-hanken-grotesk mb-3 text-base">
                     Прогресс: {completedLevels}/{totalLevels}
                 </div>
                 
-                {/* Уровни — автоматическая сетка */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 mb-4">
                     {loading ? (
                         [...Array(totalLevels || 5)].map((_, index) => (
@@ -206,20 +197,6 @@ const DashboardPage = () => {
                     )}
                 </div>
                 
-            </div>
-
-            {/* ==================== ФУТЕР — ЧЁРНАЯ ПОЛОСА ==================== */}
-            <div className="absolute bottom-0 left-0 right-0 w-full bg-zinc-800 h-16 sm:h-20 flex items-center justify-between px-4">
-                <button 
-                    onClick={handleExit}
-                    className="text-white font-semibold font-hanken-grotesk hover:text-red-300 transition-colors text-sm sm:text-base"
-                >
-                    Выйти
-                </button>
-                
-                <div className="text-white font-normal font-hannari text-sm sm:text-base text-right leading-tight">
-                    {formatTime(currentTime)}<br/>{formatDate(currentTime)}
-                </div>
             </div>
             
 

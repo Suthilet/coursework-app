@@ -1,10 +1,13 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
+import SettingsPage from './pages/SettingsPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import { authAPI } from './api/auth';
 import LevelPage from './pages/LevelPage';
+import { AudioProvider } from './context/AudioContext';
+import BackgroundMusic from './components/BackgroundMusic';
 
 // Компонент для проверки авторизации
 const PrivateRoute = ({ children }) => {
@@ -22,6 +25,8 @@ const PublicRoute = ({ children }) => {
 
 function App() {
   return (
+  <AudioProvider>
+    <BackgroundMusic />  
     <Router>
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
@@ -49,6 +54,9 @@ function App() {
             <LevelPage />
           </PrivateRoute>}
           />
+
+        <Route path='/settings' element={
+            <SettingsPage />}/>
         
         <Route path="*" element={
           <div className="min-h-screen bg-blue-500 flex items-center justify-center">
@@ -60,6 +68,7 @@ function App() {
         } />
       </Routes>
     </Router>
+  </AudioProvider>
   );
 }
 
