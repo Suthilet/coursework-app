@@ -58,10 +58,7 @@ const DashboardPage = () => {
 
     const completedLevels = levels.filter(level => level.completed).length;
 
-    const handleExit = async () => {
-        await authAPI.logout();
-        navigate('/login');
-    };
+
 
     const handleLevelClick = async (level) => {
         if (!levels.find(l => l.id === level.id)?.completed && 
@@ -77,8 +74,6 @@ const DashboardPage = () => {
         }
     };
 
-    const formatTime = (date) => date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-    const formatDate = (date) => date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
     const getLevelColor = (level, index) => {
         if (level.completed) return "bg-green-400";
