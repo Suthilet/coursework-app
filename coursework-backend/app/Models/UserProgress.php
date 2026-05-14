@@ -9,18 +9,22 @@ use App\Models\User;
 
 class UserProgress extends Model
 {
-     use HasFactory;
+    use HasFactory;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
         'user_id',
         'case_id',
         'status',
-        'score'
+        'score',
+        'selected_suspect_id',  // Добавьте это поле
+        'is_correct',            // Добавьте это поле
+        'completed_at'           // Добавьте это поле
+    ];
+
+    protected $casts = [
+        'is_correct' => 'boolean',
+        'completed_at' => 'datetime',
+        'score' => 'integer'
     ];
 
     public function user(): BelongsTo
@@ -31,5 +35,10 @@ class UserProgress extends Model
     public function case(): BelongsTo
     {
         return $this->belongsTo(Cases::class);
+    }
+
+    public function selectedSuspect()
+    {
+        return $this->belongsTo(Suspect::class, 'selected_suspect_id');
     }
 }

@@ -43,9 +43,25 @@ export const authAPI = {
     }
   },
   
-  logout: () => {
-    localStorage.clear();
-    window.location.href = '/login';
+ logout: async () => {
+    const token = localStorage.getItem('token');
+    
+    // Опционально: отправить запрос на сервер для инвалидации токена
+    if (token) {
+      try {
+        await axios.post(`${API_URL}/auth/logout`, {}, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+      } catch (error) {
+        console.error('Logout API error:', error);
+      }
+    }
+    
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    
   },
   
   isLoggedIn: () => {

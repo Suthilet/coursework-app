@@ -1,18 +1,25 @@
-// src/pages/SettingsPage.jsx
 import { useNavigate } from 'react-router-dom';
 import useAudio from '../hooks/useAudio';
 import profile from '../svg/person-color.svg';
 import settings from '../svg/settings-color.svg';
 import exit from '../svg/exit.svg';
+import { authAPI } from '../api/auth.js';
 
 const SettingsPage = () => {
     const navigate = useNavigate();
-    const { isPlaying, volume, isMuted, togglePlay, toggleMute, changeVolume, volumePercent } = useAudio();
+    const { isMuted, toggleMute, changeVolume, volumePercent } = useAudio();
+
+    // Функция выхода
+    const handleLogout = async () => {
+        await authAPI.logout();
+        // После logout перенаправляем на страницу входа
+        navigate('/login');
+    };
 
     return (
         <div className="min-h-screen bg-blue-500 overflow-hidden relative">
-            {/* ==================== ВЕРХНЯЯ ПАНЕЛЬ ==================== */}
-            <div className="h-14 w-full bg-white  sm:h-16 px-4 flex items-center justify-between">
+            {/* Верхняя панель */}
+            <div className="h-14 w-full bg-white sm:h-16 px-4 flex items-center justify-between">
                 <div className="text-black font-medium font-hanken-grotesk text-base">
                     Настройки
                 </div>
@@ -28,16 +35,15 @@ const SettingsPage = () => {
 
             <div className="h-6 sm:h-10"></div>
 
-            {/* ==================== КОНТЕНТ ==================== */}
+            {/* Контент */}
             <div className="px-4 pb-4">
-                <div className="w-full h-max flex justify-center items-stretch gap-10">
-                    <div className="bg-white/90 p-4 sm:p-6 rounded-xl shadow-lg w-[800px]">
+                <div className="w-full h-max flex justify-center items-stretch gap-10 flex-wrap">
+                    <div className="bg-white/90 p-4 sm:p-6 rounded-xl shadow-lg w-[800px] max-w-full">
                         <h1 className="font-bold text-black font-hanken-grotesk mb-6 text-lg sm:text-xl text-center">
                             Настройки звука
                         </h1>
 
-
-                        {/* ==================== МУЗЫКА ВКЛ/ВЫКЛ ==================== */}
+                        {/* Музыка вкл/выкл */}
                         <div className="flex items-center justify-between mb-6 pb-6 border-b border-gray-300">
                             <div>
                                 <div className="text-black font-medium font-hanken-grotesk text-base sm:text-lg">
@@ -45,7 +51,6 @@ const SettingsPage = () => {
                                 </div>
                             </div>
                             
-                            {/* Переключатель: включено = зелёный справа, выключено = серый слева */}
                             <button
                                 onClick={toggleMute}
                                 className={`
@@ -61,7 +66,7 @@ const SettingsPage = () => {
                             </button>
                         </div>
 
-                        {/* ==================== ГРОМКОСТЬ ==================== */}
+                        {/* Громкость */}
                         <div className="mb-6">
                             <div className="flex items-center justify-between mb-3">
                                 <div className="text-black font-medium font-hanken-grotesk text-base sm:text-lg">
@@ -72,8 +77,6 @@ const SettingsPage = () => {
                                 </div>
                             </div>
                             
-
-                            {/* Слайдер */}
                             <input
                                 type="range"
                                 min="0"
@@ -97,37 +100,35 @@ const SettingsPage = () => {
                                 `}
                             />
                         </div>
-
-                        
-                        </div>
-                        <div className="w-[250px] bg-white/90 p-4 sm:p-6 rounded-xl shadow-lg">
-                            <h1 className="font-bold text-black font-hanken-grotesk mb-6 text-lg sm:text-xl text-center">
-                                Аккаунт
-                            </h1>
-                            <div>
-                                <button 
-                                onClick={()=>navigate('/logout')}
+                    </div>
+                    
+                    {/* Блок аккаунта */}
+                    <div className="w-[250px] bg-white/90 p-4 sm:p-6 rounded-xl shadow-lg">
+                        <h1 className="font-bold text-black font-hanken-grotesk mb-6 text-lg sm:text-xl text-center">
+                            Аккаунт
+                        </h1>
+                        <div>
+                            <button 
+                                onClick={handleLogout}  // ← ИСПРАВЛЕНО: вызываем функцию напрямую
                                 className="font-medium text-base hover:text-orange-400 flex gap-2 items-center"
-                                >
+                            >
                                 <img src={exit} alt='Выход' className="w-6 h-6" />
                                 Выйти из профиля
-                                </button>
-                            </div>
-                        </div>
-                       
-                </div>
-                 {/* Кнопка "Назад" */}
-                        <div className="text-center mt-6 ">
-                            <button
-                                onClick={() => navigate(-1)}
-                                className="w-[200px] px-6 py-2.5 bg-orange-600 hover:bg-orange-500 text-white font-bold font-hanken-grotesk rounded-xl transition-colors text-base"
-                            >
-                                Назад
                             </button>
                         </div>
+                    </div>
+                </div>
+                
+                {/* Кнопка "Назад" */}
+                <div className="text-center mt-6">
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="w-[200px] px-6 py-2.5 bg-orange-600 hover:bg-orange-500 text-white font-bold font-hanken-grotesk rounded-xl transition-colors text-base"
+                    >
+                        Назад
+                    </button>
+                </div>
             </div>
-
-            
         </div>
     );
 };

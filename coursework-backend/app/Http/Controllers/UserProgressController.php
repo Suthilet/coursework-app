@@ -6,185 +6,182 @@ use App\Http\Controllers\Controller;
 use App\Models\UserProgress;
 use App\Models\User;
 use App\Models\Cases;
+use App\Models\Suspect;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class UserProgressController extends Controller
 {
     /**
-     * Получить прогресс пользователя
+     * Начать дело
      */
-    public function index(Request $request)
+    public function startCase(Request $request, $caseId)
     {
-        $perPage = $request->input('per_page', 20);
-        $userId = $request->input('user_id');
-        $caseId = $request->input('case_id');
-        $status = $request->input('status');
+        $user = $request->user();
 
-        // Если не указан user_id и пользователь авторизован, используем текущего пользователя
-        if (!$userId && $request->user()) {
-            $userId = $request->user()->id;
+        if (!$user) {
+            return response()->json([
+                'message' => 'Требуется авторизация'
+            ], 401);
         }
 
-        $query = UserProgress::with([
-            'user:id,full_name,login',
-            'case:id,title,difficulty'
-        ]);
+        $case = Cases::find($caseId);
 
-        if ($userId) {
-            $query->where('user_id', $userId);
+        if (!$case) {
+            return response()->json([
+                'message' => 'Дело не найдено'
+            ], 404);
         }
 
-        if ($caseId) {
-            $query->where('case_id', $caseId);
-        }
+        // Проверяем, есть ли уже прогресс
+        $progress = UserProgress::where('user_id', $user->id)
+                               ->where('case_id', $caseId)
+                               ->first();
 
-        if ($status) {
-            $query->where('status', $status);
+        if ($progress) {
+            // Если дело уже пройдено, не меняем статус
+            if ($progress->status !== 'completed') {
+                $progress->update([
+                    'status' => 'in_progress',
+                ]);
+            }
+            $message = 'Дело уже было начато ранее';
+        } else {
+            // Создаем новую запись
+            $progress = UserProgress::create([
+                'user_id' => $user->id,
+                'case_id' => $caseId,
+                'status' => 'in_progress',
+                'score' => 0,
+            ]);
+            $message = 'Дело успешно начато';
         }
-
-        $progress = $query->orderBy('updated_at', 'desc')->paginate($perPage);
 
         return response()->json([
-            'progress' => $progress->items(),
-            'pagination' => [
-                'current_page' => $progress->currentPage(),
-                'total_pages' => $progress->lastPage(),
-                'total_items' => $progress->total(),
-                'per_page' => $progress->perPage(),
+            'message' => $message,
+            'progress' => $progress,
+            'case' => [
+                'id' => $case->id,
+                'title' => $case->title,
+                'difficulty' => $case->difficulty,
             ]
         ]);
     }
 
     /**
-     * Получить прогресс по ID
+     * Проверить ответ и завершить дело
      */
-    public function show($id)
+    public function checkAnswer(Request $request, $caseId)
     {
-        $progress = UserProgress::with([
-            'user:id,full_name,login',
-            'case:id,title,difficulty,description'
-        ])->find($id);
+        $validator = Validator::make($request->all(), [
+            'suspect_id' => 'required|exists:suspects,id',
+        ]);
 
-        if (!$progress) {
+        if ($validator->fails()) {
             return response()->json([
-                'message' => 'Запись прогресса не найдена'
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $user = $request->user();
+        $case = Cases::find($caseId);
+
+        if (!$case) {
+            return response()->json([
+                'message' => 'Дело не найдено'
             ], 404);
         }
 
+        $selectedSuspectId = $request->suspect_id;
+        $isCorrect = $case->suspect_id == $selectedSuspectId;
+
+        // Получаем имя выбранного подозреваемого
+        $selectedSuspect = Suspect::find($selectedSuspectId);
+        $selectedSuspectName = $selectedSuspect ? $selectedSuspect->name : 'Неизвестно';
+
+        // Проверяем, есть ли уже запись
+        $progress = UserProgress::where('user_id', $user->id)
+                               ->where('case_id', $caseId)
+                               ->first();
+
+        if ($progress && $progress->status === 'completed') {
+            // Если уже пройдено, возвращаем результат без изменения
+            return response()->json([
+                'is_correct' => $progress->is_correct,
+                'message' => $progress->is_correct ? 'Этот уровень уже пройден! ✓' : 'Этот уровень уже был пройден.',
+                'selected_suspect_name' => $progress->selectedSuspect->name ?? 'Неизвестно',
+                'already_completed' => true,
+                'progress' => $progress
+            ]);
+        }
+
+        // Сохраняем или обновляем прогресс
+        $progress = UserProgress::updateOrCreate(
+            [
+                'user_id' => $user->id,
+                'case_id' => $caseId,
+            ],
+            [
+                'selected_suspect_id' => $selectedSuspectId,
+                'is_correct' => $isCorrect,
+                'status' => 'completed',
+                'score' => $isCorrect ? 100 : 0,
+                'completed_at' => now(),
+            ]
+        );
+
         return response()->json([
+            'is_correct' => $isCorrect,
+            'message' => $isCorrect ? 'Правильный ответ!' : 'Неправильный ответ. Попробуйте еще раз.',
+            'selected_suspect_name' => $selectedSuspectName,
+            'selected_suspect_id' => $selectedSuspectId,
+            'correct_suspect_id' => $isCorrect ? $case->suspect_id : null,
             'progress' => $progress
         ]);
     }
 
     /**
-     * Создать или обновить прогресс
+     * Получить прогресс по конкретному делу
      */
-    public function store(Request $request)
+    public function getCaseProgress(Request $request, $caseId)
     {
-        $validator = Validator::make($request->all(), [
-            'user_id' => 'sometimes|exists:users,id',
-            'case_id' => 'required|exists:cases,id',
-            'status' => 'required|string|in:started,in_progress,completed,failed',
-            'score' => 'sometimes|integer|min:0|max:100',
-        ]);
+        $user = $request->user();
 
-        if ($validator->fails()) {
+        if (!$user) {
             return response()->json([
-                'errors' => $validator->errors()
-            ], 422);
+                'message' => 'Требуется авторизация'
+            ], 401);
         }
 
-        // Если user_id не указан, используем текущего пользователя
-        $userId = $request->input('user_id');
-        if (!$userId && $request->user()) {
-            $userId = $request->user()->id;
-        } elseif (!$userId) {
-            return response()->json([
-                'message' => 'Необходимо указать user_id или войти в систему'
-            ], 422);
-        }
-
-        // Проверяем, существует ли уже запись
-        $existingProgress = UserProgress::where('user_id', $userId)
-                                       ->where('case_id', $request->case_id)
-                                       ->first();
-
-        if ($existingProgress) {
-            // Обновляем существующую запись
-            $existingProgress->update($request->only(['status', 'score']));
-            $progress = $existingProgress->fresh();
-            $message = 'Прогресс успешно обновлен';
-        } else {
-            // Создаем новую запись
-            $data = $request->all();
-            $data['user_id'] = $userId;
-            $progress = UserProgress::create($data);
-            $message = 'Прогресс успешно создан';
-        }
-
-        return response()->json([
-            'message' => $message,
-            'progress' => $progress->load(['user:id,full_name', 'case:id,title'])
-        ], 201);
-    }
-
-    /**
-     * Обновить прогресс
-     */
-    public function update(Request $request, $id)
-    {
-        $progress = UserProgress::find($id);
+        $progress = UserProgress::where('user_id', $user->id)
+                               ->where('case_id', $caseId)
+                               ->first();
 
         if (!$progress) {
             return response()->json([
-                'message' => 'Запись прогресса не найдена'
-            ], 404);
+                'progress' => null,
+                'is_completed' => false,
+                'selected_suspect_id' => null,
+                'selected_suspect_name' => null,
+                'is_correct' => false,
+                'score' => 0
+            ]);
         }
 
-        // Проверяем права: пользователь может обновлять только свой прогресс
-        if ($request->user() && $progress->user_id !== $request->user()->id && !$request->user()->isAdmin()) {
-            return response()->json([
-                'message' => 'Вы можете обновлять только свой прогресс'
-            ], 403);
+        // Получаем имя подозреваемого
+        $suspectName = null;
+        if ($progress->selected_suspect_id) {
+            $suspect = Suspect::find($progress->selected_suspect_id);
+            $suspectName = $suspect ? $suspect->name : null;
         }
-
-        $validator = Validator::make($request->all(), [
-            'status' => 'sometimes|string|in:started,in_progress,completed,failed',
-            'score' => 'sometimes|integer|min:0|max:100',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        $progress->update($request->all());
 
         return response()->json([
-            'message' => 'Прогресс успешно обновлен',
-            'progress' => $progress->fresh(['user:id,full_name', 'case:id,title'])
-        ]);
-    }
-
-    /**
-     * Удалить прогресс
-     */
-    public function destroy($id)
-    {
-        $progress = UserProgress::find($id);
-
-        if (!$progress) {
-            return response()->json([
-                'message' => 'Запись прогресса не найдена'
-            ], 404);
-        }
-
-        $progress->delete();
-
-        return response()->json([
-            'message' => 'Прогресс успешно удален'
+            'progress' => $progress,
+            'is_completed' => $progress->status === 'completed',
+            'selected_suspect_id' => $progress->selected_suspect_id,
+            'selected_suspect_name' => $suspectName,
+            'is_correct' => $progress->is_correct,
+            'score' => $progress->score
         ]);
     }
 
@@ -226,228 +223,6 @@ class UserProgressController extends Controller
                 'completion_rate' => $totalCases > 0 ? round(($completedCases / $totalCases) * 100, 2) : 0,
                 'average_score' => round($averageScore ?? 0, 2),
             ]
-        ]);
-    }
-
-    /**
-     * Начать дело
-     */
-    public function startCase(Request $request, $caseId)
-    {
-        $user = $request->user();
-
-        if (!$user) {
-            return response()->json([
-                'message' => 'Требуется авторизация'
-            ], 401);
-        }
-
-        $case = Cases::find($caseId);
-
-        if (!$case) {
-            return response()->json([
-                'message' => 'Дело не найдено'
-            ], 404);
-        }
-
-        // Проверяем, есть ли уже прогресс
-        $progress = UserProgress::where('user_id', $user->id)
-                               ->where('case_id', $caseId)
-                               ->first();
-
-        if ($progress) {
-            // Обновляем статус на "начато"
-            $progress->update([
-                'status' => 'started',
-                'score' => 0,
-            ]);
-            $message = 'Дело уже было начато ранее, статус обновлен';
-        } else {
-            // Создаем новую запись
-            $progress = UserProgress::create([
-                'user_id' => $user->id,
-                'case_id' => $caseId,
-                'status' => 'started',
-                'score' => 0,
-            ]);
-            $message = 'Дело успешно начато';
-        }
-
-        return response()->json([
-            'message' => $message,
-            'progress' => $progress,
-            'case' => [
-                'id' => $case->id,
-                'title' => $case->title,
-                'difficulty' => $case->difficulty,
-            ]
-        ]);
-    }
-
-    /**
-     * Завершить дело
-     */
-    public function completeCase(Request $request, $caseId)
-    {
-        $user = $request->user();
-
-        if (!$user) {
-            return response()->json([
-                'message' => 'Требуется авторизация'
-            ], 401);
-        }
-
-        $case = Cases::find($caseId);
-
-        if (!$case) {
-            return response()->json([
-                'message' => 'Дело не найдено'
-            ], 404);
-        }
-
-        $progress = UserProgress::where('user_id', $user->id)
-                               ->where('case_id', $caseId)
-                               ->first();
-
-        if (!$progress) {
-            return response()->json([
-                'message' => 'Дело еще не было начато'
-            ], 404);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'score' => 'required|integer|min:0|max:100',
-            'is_correct' => 'sometimes|boolean',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        $progress->update([
-            'status' => 'completed',
-            'score' => $request->score,
-        ]);
-
-        return response()->json([
-            'message' => 'Дело успешно завершено!',
-            'progress' => $progress->fresh(),
-            'case' => [
-                'id' => $case->id,
-                'title' => $case->title,
-                'difficulty' => $case->difficulty,
-            ],
-            'results' => [
-                'score' => $request->score,
-            ]
-        ]);
-    }
-
-    /**
-     * Получить лидерборд (топ пользователей)
-     */
-    public function leaderboard(Request $request)
-    {
-        $limit = $request->input('limit', 10);
-        $timeframe = $request->input('timeframe', 'all'); // today, week, month, all
-
-        $query = UserProgress::selectRaw('
-                user_id,
-                COUNT(*) as total_cases,
-                SUM(CASE WHEN status = "completed" THEN 1 ELSE 0 END) as completed_cases,
-                AVG(CASE WHEN status = "completed" THEN score ELSE NULL END) as avg_score,
-                MAX(updated_at) as last_activity
-            ')
-            ->with(['user:id,full_name,login'])
-            ->groupBy('user_id')
-            ->having('completed_cases', '>', 0);
-
-        // Фильтрация по времени
-        if ($timeframe === 'today') {
-            $query->whereDate('updated_at', today());
-        } elseif ($timeframe === 'week') {
-            $query->where('updated_at', '>=', now()->subWeek());
-        } elseif ($timeframe === 'month') {
-            $query->where('updated_at', '>=', now()->subMonth());
-        }
-
-        $leaderboard = $query->orderByDesc('avg_score')
-                            ->orderByDesc('completed_cases')
-                            ->limit($limit)
-                            ->get();
-
-        // Добавляем позицию
-        $position = 1;
-        foreach ($leaderboard as $item) {
-            $item->position = $position++;
-        }
-
-        return response()->json([
-            'leaderboard' => $leaderboard,
-            'timeframe' => $timeframe,
-            'total_players' => UserProgress::distinct('user_id')->count('user_id'),
-        ]);
-    }
-
-    /**
-     * Получить статистику прогресса
-     */
-    public function stats(Request $request)
-    {
-        $userId = $request->input('user_id');
-
-        if (!$userId && $request->user()) {
-            $userId = $request->user()->id;
-        }
-
-        if (!$userId) {
-            return response()->json([
-                'message' => 'Необходимо указать user_id или войти в систему'
-            ], 422);
-        }
-
-        $user = User::find($userId);
-
-        if (!$user) {
-            return response()->json([
-                'message' => 'Пользователь не найден'
-            ], 404);
-        }
-
-        $stats = UserProgress::selectRaw('
-                COUNT(*) as total_attempts,
-                SUM(CASE WHEN status = "completed" THEN 1 ELSE 0 END) as completed_cases,
-                SUM(CASE WHEN status = "in_progress" THEN 1 ELSE 0 END) as in_progress_cases,
-                AVG(CASE WHEN status = "completed" THEN score ELSE NULL END) as average_score,
-                MIN(created_at) as first_attempt,
-                MAX(updated_at) as last_attempt
-            ')
-            ->where('user_id', $userId)
-            ->first();
-
-        // Прогресс по сложности
-        $difficultyStats = UserProgress::join('cases', 'user_progress.case_id', '=', 'cases.id')
-            ->selectRaw('
-                cases.difficulty,
-                COUNT(*) as total,
-                AVG(user_progress.score) as avg_score,
-                SUM(CASE WHEN user_progress.status = "completed" THEN 1 ELSE 0 END) as completed
-            ')
-            ->where('user_progress.user_id', $userId)
-            ->groupBy('cases.difficulty')
-            ->orderBy('cases.difficulty')
-            ->get();
-
-        return response()->json([
-            'user' => [
-                'id' => $user->id,
-                'full_name' => $user->full_name,
-                'login' => $user->login,
-            ],
-            'stats' => $stats,
-            'difficulty_stats' => $difficultyStats,
         ]);
     }
 }

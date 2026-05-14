@@ -66,11 +66,10 @@ export const levelsAPI = {
         }
     },
     
-    // Получить информацию об уровне (деле)
-    getLevel: async (levelId) => {
+     getLevelProgress: async (levelId) => {
         const token = localStorage.getItem('token');
         try {
-            const response = await axios.get(`${API_URL}/cases/${levelId}`, {
+            const response = await axios.get(`${API_URL}/progress/case/${levelId}/progress`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -78,8 +77,47 @@ export const levelsAPI = {
             });
             return response.data;
         } catch (error) {
-            console.error('Error fetching level:', error);
-            throw error;
+            console.error('Error fetching level progress:', error);
+            return { 
+                is_completed: false,
+                selected_suspect_name: null,
+                selected_suspect_id: null
+            };
+        }
+    },
+    
+    // Проверить ответ
+    submitAnswer: async (levelId, suspectId) => {
+        const token = localStorage.getItem('token');
+        const response = await axios.post(`${API_URL}/progress/case/${levelId}/check`, 
+            { suspect_id: suspectId },
+            {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+        return response.data;
+    },
+    
+    // Начать уровень
+    startLevel: async (levelId) => {
+        const token = localStorage.getItem('token');
+        try {
+            const response = await axios.post(`${API_URL}/progress/case/${levelId}/start`, 
+                {},
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+            return response.data;
+        } catch (error) {
+            console.error('Error starting level:', error);
+            return { success: true };
         }
     },
     
@@ -137,44 +175,44 @@ export const levelsAPI = {
         }
     },
     
-    // Проверить ответ (отправить выбранного подозреваемого)
-    submitAnswer: async (levelId, suspectId) => {
-        const token = localStorage.getItem('token');
-        try {
-            const response = await axios.post(`${API_URL}/cases/${levelId}/check-answer`, 
-                { suspect_id: suspectId },
-                {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
-            return response.data;
-        } catch (error) {
-            console.error('Error submitting answer:', error);
-            throw error;
-        }
-    },
+    // // Проверить ответ (отправить выбранного подозреваемого)
+    // submitAnswer: async (levelId, suspectId) => {
+    //     const token = localStorage.getItem('token');
+    //     try {
+    //         const response = await axios.post(`${API_URL}/cases/${levelId}/check-answer`, 
+    //             { suspect_id: suspectId },
+    //             {
+    //                 headers: {
+    //                     'Authorization': `Bearer ${token}`,
+    //                     'Content-Type': 'application/json'
+    //                 }
+    //             }
+    //         );
+    //         return response.data;
+    //     } catch (error) {
+    //         console.error('Error submitting answer:', error);
+    //         throw error;
+    //     }
+    // },
     
-    // Начать уровень (обновить прогресс)
-    startLevel: async (levelId) => {
-        const token = localStorage.getItem('token');
-        try {
-            const response = await axios.post(`${API_URL}/progress/case/${levelId}/start`, 
-                {},
-                {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
-            return response.data;
-        } catch (error) {
-            console.error('Error starting level:', error);
-            // Если нет метода start, просто вернем успех
-            return { success: true };
-        }
-    }
+    // // Начать уровень (обновить прогресс)
+    // startLevel: async (levelId) => {
+    //     const token = localStorage.getItem('token');
+    //     try {
+    //         const response = await axios.post(`${API_URL}/progress/case/${levelId}/start`, 
+    //             {},
+    //             {
+    //                 headers: {
+    //                     'Authorization': `Bearer ${token}`,
+    //                     'Content-Type': 'application/json'
+    //                 }
+    //             }
+    //         );
+    //         return response.data;
+    //     } catch (error) {
+    //         console.error('Error starting level:', error);
+    //         // Если нет метода start, просто вернем успех
+    //         return { success: true };
+    //     }
+    // }
 };

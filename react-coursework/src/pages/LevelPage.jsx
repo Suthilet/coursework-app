@@ -214,36 +214,39 @@ const handleConfirmSelection = async () => {
         setError('');
         
         const response = await levelsAPI.submitAnswer(id, selectedCriminal.id);
+        console.log('Submit response:', response);
+        
         setSubmissionResult(response);
         
+        // Показываем модальное окно
         setShowResultModal(true);
         setTimeout(() => {
             setModalAnimation(true);
         }, 10);
         
         if (response.is_correct) {
-            const completedLevels = JSON.parse(localStorage.getItem('completedLevels') || '{}');
-            completedLevels[id] = {
-                suspectId: selectedCriminal.id,
-                suspectName: selectedCriminal.name,
-                completedAt: new Date().toISOString()
-            };
-            localStorage.setItem('completedLevels', JSON.stringify(completedLevels));
-            
+            // Обновляем локальное состояние
             setIsLevelCompleted(true);
             setCorrectAnswerId(selectedCriminal.id);
             setCorrectSuspectName(selectedCriminal.name);
             
+            // Обновляем таблицу, чтобы отметить правильный ответ
             const updatedResults = results.map(criminal => ({
                 ...criminal,
                 isCorrectAnswer: criminal.id === selectedCriminal.id
             }));
             setResults(updatedResults);
+            
+            // Автоматическое закрытие через 3 секунды
+            setTimeout(() => {
+                closeModal();
+                navigate('/dashboard');
+            }, 3000);
         }
         
     } catch (error) {
         console.error('Error submitting answer:', error);
-        setError('Ошибка при отправке ответа. Проверьте подключение к серверу.');
+        setError('Ошибка при отправке ответа.');
     } finally {
         setLoading(false);
     }

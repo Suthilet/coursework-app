@@ -75,24 +75,21 @@ Route::prefix('evidence')->group(function () {
     });
 });
 
-// Маршруты для прогресса (progress) - частично публичные
-Route::prefix('progress')->group(function () {
-    Route::get('/', [UserProgressController::class, 'index']);
-
-    Route::get('/leaderboard', [UserProgressController::class, 'leaderboard']);
-    Route::get('/stats', [UserProgressController::class, 'stats']);
-    Route::get('/{id}', [UserProgressController::class, 'show']);
+Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('progress')->group(function () {
+        Route::get('/my/progress', [UserProgressController::class, 'myProgress']);
+        Route::post('/case/{caseId}/start', [UserProgressController::class, 'startCase']);
+        Route::post('/case/{caseId}/check', [UserProgressController::class, 'checkAnswer']);
+        Route::get('/case/{caseId}/progress', [UserProgressController::class, 'getCaseProgress']);
+    });
 });
 
-// Защищенные маршруты (требуют аутентификации)
 Route::middleware('auth:sanctum')->group(function () {
-    // Аутентификация
     Route::prefix('auth')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/user', [AuthController::class, 'user']);
     });
 
-    // Прогресс пользователя (личные операции)
     Route::prefix('progress')->group(function () {
         Route::post('/', [UserProgressController::class, 'store']);
         Route::put('/{id}', [UserProgressController::class, 'update']);
