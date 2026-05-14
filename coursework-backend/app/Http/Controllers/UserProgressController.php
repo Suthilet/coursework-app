@@ -71,51 +71,53 @@ class UserProgressController extends Controller
     /**
      * Проверить ответ и завершить дело
      */
-    public function checkAnswer(Request $request, $caseId)
-    {
-        $validator = Validator::make($request->all(), [
-            'suspect_id' => 'required|exists:suspects,id',
+public function checkAnswer(Request $request, $caseId)
+{
+    $validator = Validator::make($request->all(), [
+        'suspect_id' => 'required|exists:suspects,id',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'errors' => $validator->errors()
+        ], 422);
+    }
+
+    $user = $request->user();
+    $case = Cases::find($caseId);
+
+    if (!$case) {
+        return response()->json([
+            'message' => 'Дело не найдено'
+        ], 404);
+    }
+
+    $selectedSuspectId = $request->suspect_id;
+    $isCorrect = $case->suspect_id == $selectedSuspectId;
+
+    // Получаем имя выбранного подозреваемого
+    $selectedSuspect = Suspect::find($selectedSuspectId);
+    $selectedSuspectName = $selectedSuspect ? $selectedSuspect->name : 'Неизвестно';
+
+    // ПРОВЕРЯЕМ, НЕ ПРОЙДЕН ЛИ УЖЕ УРОВЕНЬ
+    $existingProgress = UserProgress::where('user_id', $user->id)
+                                   ->where('case_id', $caseId)
+                                   ->first();
+
+    // Если уровень уже пройден, возвращаем результат без изменения
+    if ($existingProgress && $existingProgress->status === 'completed') {
+        return response()->json([
+            'is_correct' => true,
+            'message' => 'Этот уровень уже пройден!',
+            'selected_suspect_name' => $existingProgress->selectedSuspect->name ?? 'Неизвестно',
+            'already_completed' => true,
+            'progress' => $existingProgress
         ]);
+    }
 
-        if ($validator->fails()) {
-            return response()->json([
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        $user = $request->user();
-        $case = Cases::find($caseId);
-
-        if (!$case) {
-            return response()->json([
-                'message' => 'Дело не найдено'
-            ], 404);
-        }
-
-        $selectedSuspectId = $request->suspect_id;
-        $isCorrect = $case->suspect_id == $selectedSuspectId;
-
-        // Получаем имя выбранного подозреваемого
-        $selectedSuspect = Suspect::find($selectedSuspectId);
-        $selectedSuspectName = $selectedSuspect ? $selectedSuspect->name : 'Неизвестно';
-
-        // Проверяем, есть ли уже запись
-        $progress = UserProgress::where('user_id', $user->id)
-                               ->where('case_id', $caseId)
-                               ->first();
-
-        if ($progress && $progress->status === 'completed') {
-            // Если уже пройдено, возвращаем результат без изменения
-            return response()->json([
-                'is_correct' => $progress->is_correct,
-                'message' => $progress->is_correct ? 'Этот уровень уже пройден! ✓' : 'Этот уровень уже был пройден.',
-                'selected_suspect_name' => $progress->selectedSuspect->name ?? 'Неизвестно',
-                'already_completed' => true,
-                'progress' => $progress
-            ]);
-        }
-
-        // Сохраняем или обновляем прогресс
+    // СОХРАНЯЕМ ПРОГРЕСС ТОЛЬКО ЕСЛИ ОТВЕТ ПРАВИЛЬНЫЙ
+    if ($isCorrect) {
+        // Обновляем или создаем запись с статусом completed
         $progress = UserProgress::updateOrCreate(
             [
                 'user_id' => $user->id,
@@ -123,67 +125,124 @@ class UserProgressController extends Controller
             ],
             [
                 'selected_suspect_id' => $selectedSuspectId,
-                'is_correct' => $isCorrect,
+                'is_correct' => true,
                 'status' => 'completed',
-                'score' => $isCorrect ? 100 : 0,
+                'score' => 100,
                 'completed_at' => now(),
             ]
         );
 
         return response()->json([
-            'is_correct' => $isCorrect,
-            'message' => $isCorrect ? 'Правильный ответ!' : 'Неправильный ответ. Попробуйте еще раз.',
+            'is_correct' => true,
+            'message' => 'Правильный ответ! Уровень пройден!',
             'selected_suspect_name' => $selectedSuspectName,
             'selected_suspect_id' => $selectedSuspectId,
-            'correct_suspect_id' => $isCorrect ? $case->suspect_id : null,
+            'correct_suspect_id' => $case->suspect_id,
             'progress' => $progress
         ]);
+    } else {
+        // ПРИ НЕПРАВИЛЬНОМ ОТВЕТЕ - НЕ СОХРАНЯЕМ КАК ПРОЙДЕННЫЙ
+        // Можно сохранить как попытку, НО НЕ КАК COMPLETED
+        // Или вообще не сохранять
+
+        // Вариант 1: Не сохранять ничего (просто вернуть ошибку)
+        // return response()->json([
+        //     'is_correct' => false,
+        //     'message' => 'Неправильный ответ. Попробуйте еще раз.',
+        //     'selected_suspect_name' => $selectedSuspectName,
+        // ]);
+
+        // Вариант 2: Сохранить как попытку, но НЕ КАК ПРОЙДЕННЫЙ
+        UserProgress::updateOrCreate(
+            [
+                'user_id' => $user->id,
+                'case_id' => $caseId,
+            ],
+            [
+                'selected_suspect_id' => $selectedSuspectId,
+                'is_correct' => false,
+                'status' => 'in_progress', // ВАЖНО: НЕ completed!
+                'score' => 0,
+                'completed_at' => null, // НЕ заполняем дату завершения
+            ]
+        );
+
+        return response()->json([
+            'is_correct' => false,
+            'message' => 'Неправильный ответ. Попробуйте еще раз.',
+            'selected_suspect_name' => $selectedSuspectName,
+            'selected_suspect_id' => $selectedSuspectId,
+        ]);
     }
+}
 
     /**
      * Получить прогресс по конкретному делу
      */
-    public function getCaseProgress(Request $request, $caseId)
-    {
-        $user = $request->user();
+public function getCaseProgress(Request $request, $caseId)
+{
+    $user = $request->user();
 
-        if (!$user) {
-            return response()->json([
-                'message' => 'Требуется авторизация'
-            ], 401);
-        }
-
-        $progress = UserProgress::where('user_id', $user->id)
-                               ->where('case_id', $caseId)
-                               ->first();
-
-        if (!$progress) {
-            return response()->json([
-                'progress' => null,
-                'is_completed' => false,
-                'selected_suspect_id' => null,
-                'selected_suspect_name' => null,
-                'is_correct' => false,
-                'score' => 0
-            ]);
-        }
-
-        // Получаем имя подозреваемого
-        $suspectName = null;
-        if ($progress->selected_suspect_id) {
-            $suspect = Suspect::find($progress->selected_suspect_id);
-            $suspectName = $suspect ? $suspect->name : null;
-        }
-
+    if (!$user) {
         return response()->json([
-            'progress' => $progress,
-            'is_completed' => $progress->status === 'completed',
-            'selected_suspect_id' => $progress->selected_suspect_id,
-            'selected_suspect_name' => $suspectName,
-            'is_correct' => $progress->is_correct,
-            'score' => $progress->score
+            'message' => 'Требуется авторизация'
+        ], 401);
+    }
+
+    $progress = UserProgress::where('user_id', $user->id)
+                           ->where('case_id', $caseId)
+                           ->first();
+
+    if (!$progress) {
+        return response()->json([
+            'progress' => null,
+            'is_completed' => false,
+            'selected_suspect_id' => null,
+            'selected_suspect_name' => null,
+            'is_correct' => false,
+            'score' => 0
         ]);
     }
+
+    // ВАЖНО: проверяем статус, а не is_correct!
+    $isCompleted = $progress->status === 'completed';
+
+    // Получаем имя подозреваемого только если есть выбранный и уровень пройден
+    $suspectName = null;
+    if ($isCompleted && $progress->selected_suspect_id) {
+        $suspect = Suspect::find($progress->selected_suspect_id);
+        $suspectName = $suspect ? $suspect->name : null;
+    }
+
+    return response()->json([
+        'progress' => $progress,
+        'is_completed' => $isCompleted,  // ТОЛЬКО если status === 'completed'
+        'selected_suspect_id' => $isCompleted ? $progress->selected_suspect_id : null,
+        'selected_suspect_name' => $suspectName,
+        'is_correct' => $isCompleted ? $progress->is_correct : false,
+        'score' => $isCompleted ? $progress->score : 0
+    ]);
+}
+
+
+    public function resetProgress(Request $request)
+{
+    $user = $request->user();
+
+    if (!$user) {
+        return response()->json([
+            'message' => 'Требуется авторизация'
+        ], 401);
+    }
+
+    // Удаляем все записи прогресса пользователя
+    UserProgress::where('user_id', $user->id)->delete();
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Прогресс успешно сброшен'
+    ]);
+}
 
     /**
      * Получить прогресс текущего пользователя

@@ -148,6 +148,25 @@ export const levelsAPI = {
         }
     },
     
+    resetProgress: async () => {
+    const token = localStorage.getItem('token');
+    try {
+        const response = await axios.post(`${API_URL}/progress/reset`, 
+            {},
+            {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+        return response.data;
+    } catch (error) {
+        console.error('Error resetting progress:', error);
+        return { success: false };
+    }
+},
+    
     // Получить список всех подозреваемых для уровня
     getCriminals: async (levelId) => {
         const token = localStorage.getItem('token');

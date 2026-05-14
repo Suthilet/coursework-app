@@ -81,6 +81,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/case/{caseId}/start', [UserProgressController::class, 'startCase']);
         Route::post('/case/{caseId}/check', [UserProgressController::class, 'checkAnswer']);
         Route::get('/case/{caseId}/progress', [UserProgressController::class, 'getCaseProgress']);
+        Route::post('/reset', [UserProgressController::class, 'resetProgress']);
     });
 });
 
